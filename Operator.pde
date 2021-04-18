@@ -59,8 +59,8 @@ class Operator {
   int[][] apply(int[][] gray) {
     int[][] out = new int[gray.length][gray[0].length];
     
-    for (int x = 0; x < gray.length; ++x) {
-      for (int y = 0; y < gray[0].length - 1; ++y) {
+    for (int x = size/2; x < gray.length - size/2; ++x) {
+      for (int y = size/2; y < gray[0].length - size/2; ++y) {
         out[x][y] = (int) apply(x, y, gray);
       }
     }
@@ -74,11 +74,6 @@ class Operator {
       for(int dy = -size/2; dy <= size/2; ++dy) {
         int newX = x + dx;
         int newY = y + dy;
-        
-        //retuns zero if too close to border to apply kernel
-        if (newX < 0 || newX >= pixels.length || newY < 0 || newY >= pixels[0].length) {
-           return kernel[size/2][size/2] * pixels[x][y];
-        }
         value += kernel[dx + size/2][dy + size/2] * pixels[newX][newY];
       }
     }
