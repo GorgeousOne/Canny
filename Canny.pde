@@ -7,14 +7,15 @@ import java.util.HashSet;
 import java.util.Collections;
 import java.util.Arrays;
 
-Operator blur5 = new Operator(5, 159, new int[] {2, 4, 5, 9, 12, 15});
-Operator blur3 = new Operator(3, 16, new int[] {1, 2, 4});
+//Operator blur = new Operator(5, 159, new int[] {2, 4, 5, 9, 12, 15});
+Operator blur = new Operator(3, 16, new int[] {1, 2, 4});
 
-Operator sobelx = new Operator(4, 
+Operator sobelY = new Operator(4, 
     new int[] {-1, 0, 1},
     new int[] {-2, 0, 2},
     new int[] {-1, 0, 1});
-Operator sobely = new Operator(4, 
+    
+Operator sobelX = new Operator(4, 
     new int[] {-1, -2, -1},
     new int[] {0, 0, 0},
     new int[] {1, 2, 1}); 
@@ -23,15 +24,16 @@ PImage source;
 PImage edited;
 
 boolean isRGB = false;
+int[][] gradientIntensity;
 
 void setup() {
   surface.setSize((int) (displayWidth*2/3f), (int) (displayHeight*3/4f));
   surface.setLocation((int) (displayWidth/6f), (int) (displayHeight/8f));
   surface.setResizable(true);
-
-  source = loadImage("red.png");
-  noSmooth();
-
+  
+  source = loadImage("C:/Users/Fred Feuerpferd/Pictures/fox model/Blatt01.jpeg");
+  //source = loadImage("red.png");
+  noSmooth();  
   detectEdges(source);
 }
 
@@ -40,17 +42,17 @@ void detectEdges(PImage img) {
   int imgHeight = img.height;
  
   img.loadPixels();
-  int[][] transform = gray(img.pixels, imgWidth);
+  int[][] grayscale = gray(img.pixels, imgWidth);
   
   println("blur");
-  transform = blur3.apply(transform);
+  grayscale = blur.apply(grayscale);
 
   println("x");
-  int[][] gradientX = sobelx.apply(transform);
+  int[][] gradientX = sobelX.apply(grayscale);
   println("y");
-  int[][] gradientY = sobely.apply(transform);
+  int[][] gradientY = sobelY.apply(grayscale);
   
-  float[][] gradientIntensity = new float[imgWidth][imgHeight];
+  gradientIntensity = new int[imgWidth][imgHeight];
   float[][] gradientAngles = new float[imgWidth][imgHeight];
   
   println("intensity / angles");
@@ -59,16 +61,16 @@ void detectEdges(PImage img) {
       int gx = gradientX[x][y];
       int gy = gradientY[x][y];
       gradientAngles[x][y] = atan2(gy, gx);
-      gradientIntensity[x][y] = sqrt(pow(gx, 2) + pow(gy, 2));
+      gradientIntensity[x][y] = (int) sqrt(pow(gx, 2) + pow(gy, 2));
     }
   }
   
   println("thinning");
   thinEdges(gradientX, gradientY, gradientIntensity);
   println("tresh");
-  threshold(gradientIntensity, 10, 30);
+  threshold(gradientIntensity, 10, 25);
   println("hysterisis");
-  hysterisis(gradientIntensity);
+  hysteresis(gradientIntensity);
   
   println("copy");
   edited = img.copy();
@@ -76,19 +78,21 @@ void detectEdges(PImage img) {
   
   for (int x = 0; x < imgWidth; ++x) {
     for (int y = 0; y < imgHeight; ++y) {
-      float phi = atan2(gradientY[x][y], gradientX[x][y]);
-      //edited.pixels[y*imgWidth + x] = color(constrain(gradientIntensity[x][y], 0, 255));
-      edited.pixels[y*imgWidth + x] = rainbow((phi + PI) / TWO_PI, gradientIntensity[x][y] / 255);
+      
+      float phi = gradientAngles[x][y];
+      edited.pixels[y*imgWidth + x] = color(constrain(gradientIntensity[x][y], 0, 255));
+      //edited.pixels[y*imgWidth + x] = rainbow((phi + PI) / TWO_PI, gradientIntensity[x][y] / 255);
     }
   }
   edited.updatePixels();  
   println("finish");
+  println();
 }
 
 
 final float SIN_EIGHTH_PI = sin(PI / 8);
 
-void thinEdges(int[][] gradientX, int[][] gradientY, float[][] gradientIntensity) {
+void thinEdges(int[][] gradientX, int[][] gradientY, int[][] gradientIntensity) {
   Set<int[]> thinnedOuts = new HashSet<int[]>();
   
   for (int x = 1; x < gradientIntensity.length - 1; ++x) {
@@ -96,7 +100,7 @@ void thinEdges(int[][] gradientX, int[][] gradientY, float[][] gradientIntensity
       
       //make the edge direction in coordinate for point on one the surrounding 8 points
       int dx = constrain((int) (gradientX[x][y] / SIN_EIGHTH_PI), -1, 1);
-      int dy = constrain((int) (gradientY[x][y] / SIN_EIGHTH_PI), -1, 1); //<>//
+      int dy = constrain((int) (gradientY[x][y] / SIN_EIGHTH_PI), -1, 1);
       float intensity = gradientIntensity[x][y];
       
       if (intensity < gradientIntensity[x+dx][y+dy] || intensity < gradientIntensity[x-dx][y-dy]) {
@@ -109,35 +113,79 @@ void thinEdges(int[][] gradientX, int[][] gradientY, float[][] gradientIntensity
   }
 }
 
-void threshold(float[][] gradientIntensity, int low, int high) {
+List<PVector> edgePixels = new LinkedList<PVector>();
+
+void threshold(int[][] gradientIntensity, int low, int high) {
   for (int x = 1; x < gradientIntensity.length - 1; ++x) {
     for (int y = 1; y < gradientIntensity[0].length - 1; ++y) {
       float intensity = gradientIntensity[x][y];
-      gradientIntensity[x][y] = intensity < low ? 0 : intensity < high ? 128 : 255;
+      
+      if (intensity >= high) {
+        gradientIntensity[x][y] = 255;
+          edgePixels.add(new PVector(x, y));
+      }else {
+        gradientIntensity[x][y] = intensity > low ? 128 : 0;
+      }
     }
   }
 }
 
-void hysterisis(float[][] gradientIntensity) {
-  int i = 0;
+void hysteresis(int[][] gradientIntensity) {
   for (int x = 1; x < gradientIntensity.length - 1; ++x) {
     for (int y = 1; y < gradientIntensity[0].length - 1; ++y) {
       
-      if (gradientIntensity[x][y] == 255) {
+      if (gradientIntensity[x][y] != 128) {
         continue;
       }
       if ((gradientIntensity[x-1][y] == 255 && gradientIntensity[x+1][y] == 255) ||
           (gradientIntensity[x][y-1] == 255 && gradientIntensity[x][y+1] == 255)) {
             gradientIntensity[x][y] = 255;
-            ++i;
+            edgePixels.add(new PVector(x, y));
       }else {
         gradientIntensity[x][y] = 0;
       }
     }
   }
-  println(i);
 }
- 
+
+//List<List> contours = new LinkedList<Contour>();
+
+void findContours(int[][] gradientIntensity) {
+  
+  if (edgePixels.isEmpty()) {
+    return;
+  }
+  //while (!edges.isEmpty()) {
+    PVector pixel = edgePixels.remove(0);
+    List<PVector> contour = new LinkedList<PVector>();
+    contour.add(pixel);
+    
+    List<PVector> edgeNeighbors = new LinkedList<PVector>();
+    edgeNeighbors.add(pixel);
+    
+    while (!edgeNeighbors.isEmpty()) {
+      PVector next = edgeNeighbors.remove(0);
+      
+      for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy) {
+          
+          if (dx == 0 && dy == 0) {
+            continue; 
+          }
+          PVector neighbor = next.copy().add(dx, dy);
+          
+          if (gradientIntensity[(int) neighbor.x][(int) neighbor.y] == 255 && !contour.contains(neighbor)) {
+             edgePixels.remove(neighbor);
+             contour.add(neighbor);
+             edgeNeighbors.add(neighbor);
+             edited.set((int) neighbor.x, (int) neighbor.y, color(255, 0, 0));
+          }
+        }
+      }
+    }
+    println("contour " + contour.size());
+  //}
+}
 
 
 boolean displaySource = true;
@@ -146,6 +194,7 @@ float zoom = 0;
 
 void draw() {
   background(196);
+  findContours(gradientIntensity);
   
   push();
   translate(width/2, height/2);
